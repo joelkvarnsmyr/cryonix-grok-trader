@@ -7,7 +7,8 @@ import MultiBotManager from '@/components/MultiBotManager';
 import KPIDashboard from '@/components/KPIDashboard';
 import ConfigurationPanel from '@/components/ConfigurationPanel';
 import TradingFlowChart from '@/components/TradingFlowChart';
-import { BarChart3, GitBranch } from 'lucide-react';
+import ChatInterface from '@/components/ChatInterface';
+import { BarChart3, GitBranch, MessageCircle } from 'lucide-react';
 import tradingHero from '@/assets/trading-hero.jpg';
 
 const Index = () => {
@@ -51,6 +52,10 @@ const Index = () => {
                   <BarChart3 className="w-4 h-4" />
                   KPI Dashboard
                 </TabsTrigger>
+                <TabsTrigger value="chat" className="flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4" />
+                  Chat Assistant
+                </TabsTrigger>
                 <TabsTrigger value="config" className="flex items-center gap-2">
                   <GitBranch className="w-4 h-4" />
                   Konfiguration
@@ -75,6 +80,10 @@ const Index = () => {
 
               <TabsContent value="kpi">
                 <KPIDashboard />
+              </TabsContent>
+
+              <TabsContent value="chat">
+                <ChatInterface />
               </TabsContent>
 
               <TabsContent value="config">
