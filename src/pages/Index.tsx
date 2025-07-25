@@ -7,9 +7,11 @@ import { Bot, BarChart3, Settings, TrendingUp } from 'lucide-react';
 const Index = () => {
   const navigate = useNavigate();
   
-  console.log('Index page: Rendering...');
-  console.log('Index page: Navigate function available:', !!navigate);
-
+  console.log('Index page: Starting render...');
+  
+  // Add direct debug info
+  console.log('Index page: Current URL:', window.location.href);
+  
   return (
     <Layout>
       <div className="space-y-8">
