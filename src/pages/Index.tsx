@@ -27,28 +27,63 @@ const Index = () => {
       </div>
 
       {/* Main Content */}
-      <div className="container mx-auto p-6">
-        <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="bg-muted">
-            <TabsTrigger value="dashboard" className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
-              Trading Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="architecture" className="flex items-center gap-2">
-              <GitBranch className="w-4 h-4" />
-              System Architecture
-            </TabsTrigger>
-          </TabsList>
+          <div className="container mx-auto p-6">
+            <Tabs defaultValue="dashboard" className="space-y-6">
+              <TabsList className="bg-muted">
+                <TabsTrigger value="dashboard" className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  Trading Dashboard
+                </TabsTrigger>
+                <TabsTrigger value="backtesting" className="flex items-center gap-2">
+                  <GitBranch className="w-4 h-4" />
+                  Backtesting
+                </TabsTrigger>
+                <TabsTrigger value="multibot" className="flex items-center gap-2">
+                  <GitBranch className="w-4 h-4" />
+                  Multi-Bot Manager
+                </TabsTrigger>
+                <TabsTrigger value="kpi" className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  KPI Dashboard
+                </TabsTrigger>
+                <TabsTrigger value="config" className="flex items-center gap-2">
+                  <GitBranch className="w-4 h-4" />
+                  Konfiguration
+                </TabsTrigger>
+                <TabsTrigger value="architecture" className="flex items-center gap-2">
+                  <GitBranch className="w-4 h-4" />
+                  Arkitektur
+                </TabsTrigger>
+              </TabsList>
 
-          <TabsContent value="dashboard">
-            <TradingDashboard />
-          </TabsContent>
+              <TabsContent value="dashboard">
+                <TradingDashboard />
+              </TabsContent>
 
-          <TabsContent value="architecture">
-            <ProcessFlow />
-          </TabsContent>
-        </Tabs>
-      </div>
+              <TabsContent value="backtesting">
+                <BacktestingDashboard />
+              </TabsContent>
+
+              <TabsContent value="multibot">
+                <MultiBotManager />
+              </TabsContent>
+
+              <TabsContent value="kpi">
+                <KPIDashboard />
+              </TabsContent>
+
+              <TabsContent value="config">
+                <ConfigurationPanel />
+              </TabsContent>
+
+              <TabsContent value="architecture">
+                <div className="space-y-6">
+                  <ProcessFlow />
+                  <TradingFlowChart />
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
     </div>
   );
 };
