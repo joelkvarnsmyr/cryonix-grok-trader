@@ -4,60 +4,46 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { User, Session } from '@supabase/supabase-js';
+import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { LogIn, UserPlus, Mail, Lock } from 'lucide-react';
+import { LogIn, UserPlus, Mail, Lock, Loader2 } from 'lucide-react';
+import { performSecureSignIn, performSecureSignUp } from '@/lib/authUtils';
 
 const Auth = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const { user, loading: authLoading } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
+  console.log('Auth page: Rendering...', { user: !!user, authLoading });
+
+  // Redirect if already authenticated
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        // Redirect to main page if authenticated
-        if (session?.user) {
-          window.location.href = '/';
-        }
-      }
-    );
-
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        window.location.href = '/';
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    if (user && !authLoading) {
+      console.log('Auth: User already authenticated, redirecting...');
+      window.location.href = '/';
+    }
+  }, [user, authLoading]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email || !password) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter both email and password",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
+    console.log(`Auth: Starting ${isSignUp ? 'sign up' : 'sign in'} for:`, email);
 
     try {
       if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`
-          }
-        });
+        const { data, error } = await performSecureSignUp(email, password);
 
         if (error) throw error;
 
@@ -73,10 +59,7 @@ const Auth = () => {
           });
         }
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { data, error } = await performSecureSignIn(email, password);
 
         if (error) throw error;
 
@@ -86,15 +69,28 @@ const Auth = () => {
         });
       }
     } catch (error: any) {
+      console.error('Auth: Authentication error:', error);
       toast({
         title: "Authentication Error",
-        description: error.message,
+        description: error.message || "An unexpected error occurred",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   };
+
+  // Show loading spinner while checking auth state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex items-center gap-3">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Loading...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Layout>
@@ -148,9 +144,14 @@ const Auth = () => {
               <Button 
                 type="submit" 
                 className="w-full" 
-                disabled={loading}
+                disabled={loading || authLoading}
               >
-                {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Processing...
+                  </div>
+                ) : (isSignUp ? 'Create Account' : 'Sign In')}
               </Button>
             </form>
 

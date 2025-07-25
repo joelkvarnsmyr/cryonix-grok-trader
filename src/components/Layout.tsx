@@ -28,12 +28,8 @@ const Layout = ({ children }: LayoutProps) => {
   }, [loading, isAuthenticated, location.pathname, navigate]);
 
   const handleSignOut = async () => {
-    await signOut();
-    toast({
-      title: "Signed out",
-      description: "You have been signed out successfully.",
-    });
-    navigate('/auth');
+    console.log('Layout: Starting sign out...');
+    await signOut(); // This now uses performSecureSignOut
   };
 
   if (loading) {
