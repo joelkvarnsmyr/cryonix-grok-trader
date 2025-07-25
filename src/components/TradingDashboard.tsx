@@ -420,8 +420,8 @@ const TradingDashboard = () => {
                         <span>1800s</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Cache TTL:</span>
-                        <span>60s</span>
+                        <span>Cache:</span>
+                        <span>Browser Storage</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Strategy:</span>

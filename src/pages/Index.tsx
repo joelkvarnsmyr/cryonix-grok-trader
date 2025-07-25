@@ -22,11 +22,11 @@ const Index = () => {
         <div className="relative z-10 text-center space-y-4">
           <h1 className="text-5xl font-bold text-foreground">Cryonix Trading Bot</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Autonomous cryptocurrency trading powered by xAI Grok analysis and advanced risk management
+            Advanced cryptocurrency trading dashboard with real-time analytics and risk management
           </p>
           <div className="flex items-center justify-center gap-2 text-success">
             <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium">Live on Binance Testnet</span>
+            <span className="text-sm font-medium">Live Dashboard Active</span>
           </div>
         </div>
       </div>

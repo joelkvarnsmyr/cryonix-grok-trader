@@ -196,8 +196,8 @@ const ProcessFlow = () => {
                 <li>• Binance API/WebSocket</li>
                 <li>• xAI Grok-3 Model</li>
                 <li>• SMA Crossover Strategy</li>
-                <li>• TTL Cache (60s)</li>
-                <li>• Async I/O</li>
+                <li>• Browser Cache</li>
+                <li>• Real-time Updates</li>
               </ul>
             </div>
           </div>

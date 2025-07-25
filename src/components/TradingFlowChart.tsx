@@ -68,8 +68,8 @@ const TradingFlowChart = () => {
       data: { 
         label: (
           <div className="text-center">
-            <div className="font-semibold">TTL Cache</div>
-            <div className="text-xs text-muted-foreground">60s TTL</div>
+            <div className="font-semibold">Browser Cache</div>
+            <div className="text-xs text-muted-foreground">Local Storage</div>
           </div>
         ) 
       },
@@ -198,8 +198,8 @@ const TradingFlowChart = () => {
         label: (
           <div className="text-center">
             <div className="font-semibold">Backlog Manager</div>
-            <div className="text-xs text-muted-foreground">JSON Storage</div>
-            <div className="text-xs text-success">Async I/O</div>
+            <div className="text-xs text-muted-foreground">Local Storage</div>
+            <div className="text-xs text-success">Real-time Updates</div>
           </div>
         ) 
       },
@@ -220,8 +220,8 @@ const TradingFlowChart = () => {
       data: { 
         label: (
           <div className="text-center">
-            <div className="font-semibold text-success">Streamlit UI</div>
-            <div className="text-xs text-muted-foreground">Real-time Dashboard</div>
+            <div className="font-semibold text-success">Web Dashboard</div>
+            <div className="text-xs text-muted-foreground">React Real-time UI</div>
           </div>
         ) 
       },
@@ -479,8 +479,8 @@ const TradingFlowChart = () => {
               <h4 className="font-semibold mb-2 text-primary">Data Layer</h4>
               <ul className="space-y-1 text-muted-foreground">
                 <li>• WebSocket real-time prices</li>
-                <li>• TTL Cache (60s)</li>
-                <li>• Async I/O operations</li>
+                <li>• Browser Cache</li>
+                <li>• Real-time React updates</li>
               </ul>
             </div>
             <div>

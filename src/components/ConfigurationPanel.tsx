@@ -710,8 +710,8 @@ const ConfigurationPanel = () => {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label htmlFor="uiEnabled">Streamlit UI Aktiverad</Label>
-                      <p className="text-sm text-muted-foreground">Webb-baserat gränssnitt</p>
+                      <Label htmlFor="uiEnabled">Web Dashboard Aktiverad</Label>
+                      <p className="text-sm text-muted-foreground">React-baserat gränssnitt</p>
                     </div>
                     <Switch 
                       id="uiEnabled"
@@ -738,9 +738,9 @@ const ConfigurationPanel = () => {
                       <h4 className="font-semibold">System Status</h4>
                     </div>
                     <div className="space-y-1 text-sm text-muted-foreground">
-                      <p>• Python 3.10+ runtime</p>
-                      <p>• Poetry dependency manager</p>
-                      <p>• Asyncio event loop</p>
+                      <p>• TypeScript/React runtime</p>
+                      <p>• Vite build system</p>
+                      <p>• Real-time WebSocket connections</p>
                       <p>• {config.system.multiBotMaxActive} max aktiva bots</p>
                       <p>• {config.system.backlogRetention} dagars log retention</p>
                     </div>
