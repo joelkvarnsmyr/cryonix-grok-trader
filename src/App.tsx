@@ -10,6 +10,7 @@ import MultiBot from "./pages/MultiBot";
 import Backtesting from "./pages/Backtesting";
 import Config from "./pages/Config";
 import Architecture from "./pages/Architecture";
+import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
 console.log('App.tsx: Creating QueryClient...');
@@ -26,6 +27,7 @@ const App = () => {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/kpi" element={<KPI />} />
             <Route path="/multibot" element={<MultiBot />} />

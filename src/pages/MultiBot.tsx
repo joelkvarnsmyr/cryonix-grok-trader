@@ -1,10 +1,10 @@
 import Layout from '@/components/Layout';
-import MultiBotManager from '@/components/MultiBotManager';
+import RealMultiBotManager from '@/components/RealMultiBotManager';
 
 const MultiBot = () => {
   return (
     <Layout>
-      <MultiBotManager />
+      <RealMultiBotManager />
     </Layout>
   );
 };
