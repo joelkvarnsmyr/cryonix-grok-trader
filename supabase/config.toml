@@ -47,3 +47,9 @@ verify_jwt = true
 
 [functions.binance-integration]
 verify_jwt = true
+
+[functions.ai-market-analysis]
+verify_jwt = true
+
+[functions.trading-assistant]
+verify_jwt = true

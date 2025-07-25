@@ -9,7 +9,8 @@ import {
   Target,
   Bot,
   Activity,
-  Zap
+  Zap,
+  Brain
 } from "lucide-react";
 
 import {
@@ -34,11 +35,11 @@ const mainItems = [
     description: "Realtidsövervakning"
   },
   { 
-    title: "Chat Assistant", 
+    title: "AI Assistant", 
     url: "/chat", 
-    icon: MessageCircle,
+    icon: Brain,
     description: "AI-driven handel",
-    badge: "Grok"
+    badge: "Gemini"
   },
   { 
     title: "KPI Dashboard", 
@@ -203,7 +204,7 @@ export function AppSidebar() {
                 <div>
                   <div className="flex items-center gap-1">
                     <div className="w-1.5 h-1.5 bg-success rounded-full"></div>
-                    <span>Grok</span>
+                    <span>Gemini</span>
                   </div>
                 </div>
                 <div>

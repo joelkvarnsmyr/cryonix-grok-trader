@@ -1,10 +1,10 @@
 import Layout from '@/components/Layout';
-import ChatInterface from '@/components/ChatInterface';
+import AITradingAssistant from '@/components/AITradingAssistant';
 
 const Chat = () => {
   return (
     <Layout>
-      <ChatInterface />
+      <AITradingAssistant />
     </Layout>
   );
 };
