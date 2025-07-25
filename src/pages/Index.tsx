@@ -6,6 +6,8 @@ import { Bot, BarChart3, Settings, TrendingUp } from 'lucide-react';
 
 const Index = () => {
   const navigate = useNavigate();
+  
+  console.log('Index page: Rendering...');
 
   return (
     <Layout>

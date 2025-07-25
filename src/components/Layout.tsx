@@ -3,8 +3,9 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { Menu, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useEffect } from "react";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -13,13 +14,18 @@ interface LayoutProps {
 const Layout = ({ children }: LayoutProps) => {
   const { user, loading, signOut, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
-  // Redirect to auth if not authenticated (except on auth page)
-  if (!loading && !isAuthenticated && !window.location.pathname.includes('/auth')) {
-    navigate('/auth');
-    return null;
-  }
+  console.log('Layout render:', { user, loading, isAuthenticated, pathname: location.pathname });
+
+  // Handle authentication redirect with useEffect to avoid blocking render
+  useEffect(() => {
+    if (!loading && !isAuthenticated && !location.pathname.includes('/auth')) {
+      console.log('Redirecting to auth...');
+      navigate('/auth');
+    }
+  }, [loading, isAuthenticated, location.pathname, navigate]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -31,12 +37,25 @@ const Layout = ({ children }: LayoutProps) => {
   };
 
   if (loading) {
+    console.log('Layout: showing loading spinner');
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
+
+  // Don't render main content if user should be redirected
+  if (!isAuthenticated && !location.pathname.includes('/auth')) {
+    console.log('Layout: waiting for auth redirect');
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  console.log('Layout: rendering main content');
 
   return (
     <SidebarProvider>
