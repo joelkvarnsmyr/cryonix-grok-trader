@@ -12,6 +12,8 @@ import { BarChart3, GitBranch, MessageCircle } from 'lucide-react';
 import tradingHero from '@/assets/trading-hero.jpg';
 
 const Index = () => {
+  console.log('Index.tsx: Rendering Index component...');
+  
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
