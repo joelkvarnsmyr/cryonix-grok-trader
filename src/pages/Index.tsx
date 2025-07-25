@@ -2,6 +2,11 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import TradingDashboard from '@/components/TradingDashboard';
 import ProcessFlow from '@/components/ProcessFlow';
+import BacktestingDashboard from '@/components/BacktestingDashboard';
+import MultiBotManager from '@/components/MultiBotManager';
+import KPIDashboard from '@/components/KPIDashboard';
+import ConfigurationPanel from '@/components/ConfigurationPanel';
+import TradingFlowChart from '@/components/TradingFlowChart';
 import { BarChart3, GitBranch } from 'lucide-react';
 import tradingHero from '@/assets/trading-hero.jpg';
 
