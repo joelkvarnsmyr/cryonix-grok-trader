@@ -8,6 +8,7 @@ const Index = () => {
   const navigate = useNavigate();
   
   console.log('Index page: Rendering...');
+  console.log('Index page: Navigate function available:', !!navigate);
 
   return (
     <Layout>
