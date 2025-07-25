@@ -10,6 +10,8 @@ import { LogIn, UserPlus, Mail, Lock, Loader2 } from 'lucide-react';
 import { performSecureSignIn, performSecureSignUp } from '@/lib/authUtils';
 
 const Auth = () => {
+  console.log('Auth page: Component initializing...');
+  
   const { user, loading: authLoading } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -17,7 +19,7 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  console.log('Auth page: Rendering...', { user: !!user, authLoading });
+  console.log('Auth page: State initialized', { user: !!user, authLoading, isSignUp });
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -93,7 +95,7 @@ const Auth = () => {
   }
 
   return (
-    <Layout>
+    <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center p-6">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
@@ -170,7 +172,7 @@ const Auth = () => {
           </CardContent>
         </Card>
       </div>
-    </Layout>
+    </div>
   );
 };
 
