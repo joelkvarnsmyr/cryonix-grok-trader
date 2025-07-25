@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import TestIndex from "./pages/TestIndex";
 import Chat from "./pages/Chat";
 import KPI from "./pages/KPI";
 import MultiBot from "./pages/MultiBot";
@@ -26,7 +26,7 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<TestIndex />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/kpi" element={<KPI />} />
