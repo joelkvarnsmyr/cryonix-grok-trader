@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/AppSidebar";
 import TradingDashboard from '@/components/TradingDashboard';
 import ProcessFlow from '@/components/ProcessFlow';
 import BacktestingDashboard from '@/components/BacktestingDashboard';
