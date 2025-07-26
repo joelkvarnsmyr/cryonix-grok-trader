@@ -103,7 +103,7 @@ async function startAutonomousLoop(supabase: any, userId: string, intervalMinute
   // Log loop start
   await logSystemActivity(supabase, userId, 'system', 'Autonomous Loop Started', `Trading loop started with ${intervalMinutes} minute interval`, 'success');
 
-  // Define watchlist pairs
+  // Define configurable watchlist pairs
   const watchlistPairs = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'DOGEUSDT'];
 
   // Main autonomous loop
@@ -113,7 +113,10 @@ async function startAutonomousLoop(supabase: any, userId: string, intervalMinute
     console.log(`Starting trading cycle at ${new Date().toISOString()}`);
     
     try {
-      // Check if it's near end of day (23:55 UTC) - close positions
+      // 1. Fetch comprehensive market data first
+      await updateMarketDataCache(supabase, userId, watchlistPairs);
+      
+      // 2. Check if it's near end of day (23:55 UTC) - close positions
       const now = new Date();
       const hour = now.getUTCHours();
       const minute = now.getUTCMinutes();
@@ -359,6 +362,62 @@ async function logBotActivity(supabase: any, userId: string, botId: string, acti
       });
   } catch (error) {
     console.error('Error logging bot activity:', error);
+  }
+}
+
+async function updateMarketDataCache(supabase: any, userId: string, symbols: string[]) {
+  try {
+    // Fetch comprehensive market data using the new enhanced function
+    const promises = [
+      // Realtime data
+      supabase.functions.invoke('enhanced-market-data', {
+        body: { action: 'fetch_realtime', symbols }
+      }),
+      // Sentiment data
+      supabase.functions.invoke('enhanced-market-data', {
+        body: { action: 'fetch_sentiment', symbols }
+      })
+    ];
+
+    const [realtimeResponse, sentimentResponse] = await Promise.all(promises);
+
+    // Update market_data table with fresh data
+    if (realtimeResponse.data?.success && realtimeResponse.data?.data) {
+      for (const marketData of realtimeResponse.data.data) {
+        await supabase
+          .from('market_data')
+          .upsert({
+            symbol: marketData.symbol,
+            price: marketData.price,
+            change_24h: marketData.change_24h,
+            change_percent_24h: marketData.change_percent_24h,
+            volume_24h: marketData.volume_24h,
+            high_24h: marketData.high_24h,
+            low_24h: marketData.low_24h,
+            timestamp: marketData.timestamp
+          });
+      }
+    }
+
+    // Log sentiment data as system activity
+    if (sentimentResponse.data?.success && sentimentResponse.data?.data) {
+      const sentiment = sentimentResponse.data.data;
+      await logSystemActivity(
+        supabase, 
+        userId, 
+        'system', 
+        'Market Sentiment Updated', 
+        `Overall market: ${sentiment.overall_market_sentiment}`,
+        'info',
+        { sentimentData: sentiment }
+      );
+    }
+
+    await logSystemActivity(supabase, userId, 'system', 'Market Data Updated', `Updated data for ${symbols.join(', ')}`, 'success');
+    
+  } catch (error) {
+    console.error('Error updating market data cache:', error);
+    await logSystemActivity(supabase, userId, 'system', 'Market Data Error', `Failed to update market data: ${error.message}`, 'error');
   }
 }
 

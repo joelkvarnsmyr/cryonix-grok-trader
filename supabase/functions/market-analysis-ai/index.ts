@@ -55,13 +55,16 @@ serve(async (req) => {
     // 1. Calculate technical indicators
     const technicalIndicators = await calculateTechnicalIndicators(supabase, symbol);
     
-    // 2. Generate self-question based on market conditions
-    const selfQuestion = generateSelfQuestion(symbol, marketData, technicalIndicators);
+    // 2. Get sentiment data
+    const sentimentData = await getSentimentData(supabase, symbol);
     
-    // 3. Analyze with Google AI
-    const aiAnalysis = await analyzeWithGoogleAI(googleApiKey, selfQuestion, marketData, technicalIndicators, riskSettings);
+    // 3. Generate self-question based on market conditions
+    const selfQuestion = generateSelfQuestion(symbol, marketData, technicalIndicators, sentimentData);
     
-    // 4. Log the analysis
+    // 4. Analyze with Google AI
+    const aiAnalysis = await analyzeWithGoogleAI(googleApiKey, selfQuestion, marketData, technicalIndicators, riskSettings, sentimentData);
+    
+    // 5. Log the analysis
     await logAnalysis(supabase, user.id, botId, selfQuestion, aiAnalysis);
 
     return new Response(JSON.stringify(aiAnalysis), {
@@ -144,7 +147,33 @@ function calculateRSI(prices: number[], period: number = 14): number {
   return 100 - (100 / (1 + rs));
 }
 
-function generateSelfQuestion(symbol: string, marketData: any, indicators: TechnicalIndicators): string {
+async function getSentimentData(supabase: any, symbol: string): Promise<any> {
+  try {
+    // Get latest sentiment data from bot activities 
+    const { data: sentimentActivity } = await supabase
+      .from('bot_activities')
+      .select('data')
+      .eq('activity_type', 'data_fetch')
+      .eq('title', 'Sentiment Data Fetch')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (sentimentActivity?.data?.sentimentData) {
+      const sentimentData = sentimentActivity.data.sentimentData;
+      const symbolSentiment = sentimentData.symbols?.find((s: any) => s.symbol === symbol);
+      return symbolSentiment || { sentiment_score: 50, sentiment_label: 'Neutral', social_media_buzz: 'unknown' };
+    }
+
+    // Fallback neutral sentiment
+    return { sentiment_score: 50, sentiment_label: 'Neutral', social_media_buzz: 'unknown' };
+  } catch (error) {
+    console.error('Error getting sentiment data:', error);
+    return { sentiment_score: 50, sentiment_label: 'Neutral', social_media_buzz: 'unknown' };
+  }
+}
+
+function generateSelfQuestion(symbol: string, marketData: any, indicators: TechnicalIndicators, sentimentData: any): string {
   const priceChange = marketData.change_percent_24h;
   const price = marketData.price;
   
@@ -171,14 +200,23 @@ function generateSelfQuestion(symbol: string, marketData: any, indicators: Techn
     triggers.push("high volume spike");
   }
 
+  // Add sentiment trigger
+  if (sentimentData.sentiment_score > 70) {
+    triggers.push("very bullish sentiment");
+  } else if (sentimentData.sentiment_score < 30) {
+    triggers.push("very bearish sentiment");
+  } else if (sentimentData.social_media_buzz === 'high') {
+    triggers.push("high social media buzz");
+  }
+
   // Generate contextual question
   const action = priceChange > 2 ? "sell" : priceChange < -2 ? "buy" : "hold";
   const triggerText = triggers.length > 0 ? triggers.join(" and ") : "current market conditions";
   
-  return `Should we ${action} ${symbol} based on ${triggerText}? Current price: $${price.toFixed(4)}, 24h change: ${priceChange.toFixed(2)}%, RSI: ${indicators.rsi.toFixed(1)}`;
+  return `Should we ${action} ${symbol} based on ${triggerText}? Current price: $${price.toFixed(4)}, 24h change: ${priceChange.toFixed(2)}%, RSI: ${indicators.rsi.toFixed(1)}, sentiment: ${sentimentData.sentiment_label} (${sentimentData.sentiment_score}/100)`;
 }
 
-async function analyzeWithGoogleAI(apiKey: string, question: string, marketData: any, indicators: TechnicalIndicators, riskSettings: any) {
+async function analyzeWithGoogleAI(apiKey: string, question: string, marketData: any, indicators: TechnicalIndicators, riskSettings: any, sentimentData: any) {
   const systemPrompt = `You are an expert cryptocurrency trading assistant. Analyze the market data and answer the trading question with a specific decision.
 
 IMPORTANT: You must respond with a valid JSON object containing exactly these fields:
@@ -211,12 +249,17 @@ Technical Indicators:
 - Price Change (5min): ${indicators.priceChange.toFixed(2)}%
 - Volume Change: ${indicators.volumeChange.toFixed(2)}%
 
+Sentiment Analysis:
+- Sentiment Score: ${sentimentData.sentiment_score}/100 (${sentimentData.sentiment_label})
+- Social Media Buzz: ${sentimentData.social_media_buzz}
+- Key Factors: ${sentimentData.key_factors?.join(', ') || 'No specific factors'}
+
 Risk Settings:
 - Max Position: ${((riskSettings?.maxTradeAmount || 0.05) * 100).toFixed(1)}% of balance
 - Stop Loss: ${((riskSettings?.stopLoss || 0.02) * 100).toFixed(1)}%
 - Risk Level: ${riskSettings?.riskLevel || 'medium'}
 
-Provide your trading recommendation as a JSON response.`;
+Provide your trading recommendation as a JSON response, considering all factors including market sentiment.`;
 
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
