@@ -159,6 +159,45 @@ export type Database = {
           },
         ]
       }
+      portfolio_holdings: {
+        Row: {
+          avg_buy_price: number
+          bot_id: string | null
+          created_at: string
+          current_value: number
+          id: string
+          last_updated: string
+          quantity: number
+          symbol: string
+          unrealized_pnl: number
+          user_id: string
+        }
+        Insert: {
+          avg_buy_price?: number
+          bot_id?: string | null
+          created_at?: string
+          current_value?: number
+          id?: string
+          last_updated?: string
+          quantity?: number
+          symbol: string
+          unrealized_pnl?: number
+          user_id: string
+        }
+        Update: {
+          avg_buy_price?: number
+          bot_id?: string | null
+          created_at?: string
+          current_value?: number
+          id?: string
+          last_updated?: string
+          quantity?: number
+          symbol?: string
+          unrealized_pnl?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       system_config: {
         Row: {
           config_key: string
@@ -317,6 +356,42 @@ export type Database = {
         }
         Relationships: []
       }
+      wallet_balances: {
+        Row: {
+          available_balance: number
+          bot_id: string | null
+          created_at: string
+          currency: string
+          id: string
+          last_updated: string
+          reserved_balance: number
+          total_balance: number
+          user_id: string
+        }
+        Insert: {
+          available_balance?: number
+          bot_id?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          last_updated?: string
+          reserved_balance?: number
+          total_balance?: number
+          user_id: string
+        }
+        Update: {
+          available_balance?: number
+          bot_id?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          last_updated?: string
+          reserved_balance?: number
+          total_balance?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -329,6 +404,17 @@ export type Database = {
       cron_unschedule: {
         Args: { job_name: string }
         Returns: undefined
+      }
+      get_portfolio_summary: {
+        Args: { p_user_id: string; p_bot_id?: string }
+        Returns: {
+          total_value: number
+          available_cash: number
+          total_unrealized_pnl: number
+          position_count: number
+          largest_position_symbol: string
+          largest_position_percentage: number
+        }[]
       }
     }
     Enums: {

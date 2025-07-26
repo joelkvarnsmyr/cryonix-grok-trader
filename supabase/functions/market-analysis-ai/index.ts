@@ -52,17 +52,20 @@ serve(async (req) => {
 
     const { botId, symbol, marketData, riskSettings }: AnalysisRequest = await req.json();
 
-    // 1. Calculate technical indicators
+    // 1. Get portfolio data
+    const portfolioData = await getPortfolioData(supabase, user.id, botId);
+
+    // 2. Calculate technical indicators
     const technicalIndicators = await calculateTechnicalIndicators(supabase, symbol);
     
-    // 2. Get sentiment data
+    // 3. Get sentiment data
     const sentimentData = await getSentimentData(supabase, symbol);
     
-    // 3. Generate self-question based on market conditions
-    const selfQuestion = generateSelfQuestion(symbol, marketData, technicalIndicators, sentimentData);
+    // 4. Generate self-question based on market conditions and portfolio
+    const selfQuestion = generateSelfQuestion(symbol, marketData, technicalIndicators, sentimentData, portfolioData);
     
-    // 4. Analyze with Google AI
-    const aiAnalysis = await analyzeWithGoogleAI(googleApiKey, selfQuestion, marketData, technicalIndicators, riskSettings, sentimentData);
+    // 5. Analyze with Google AI including portfolio context
+    const aiAnalysis = await analyzeWithGoogleAI(googleApiKey, selfQuestion, marketData, technicalIndicators, riskSettings, sentimentData, portfolioData);
     
     // 5. Log the analysis
     await logAnalysis(supabase, user.id, botId, selfQuestion, aiAnalysis);
@@ -82,6 +85,62 @@ serve(async (req) => {
     });
   }
 });
+
+async function getPortfolioData(supabase: any, userId: string, botId: string) {
+  try {
+    // Get portfolio holdings
+    const { data: holdings } = await supabase
+      .from('portfolio_holdings')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('bot_id', botId);
+
+    // Get wallet balance
+    const { data: walletBalance } = await supabase
+      .from('wallet_balances')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('bot_id', botId)
+      .eq('currency', 'USDT')
+      .single();
+
+    // Get portfolio summary
+    const { data: portfolioSummary } = await supabase
+      .rpc('get_portfolio_summary', { 
+        p_user_id: userId, 
+        p_bot_id: botId 
+      });
+
+    const availableCash = walletBalance?.available_balance || 0;
+    const totalValue = portfolioSummary?.[0]?.total_value || 0;
+    
+    // Check if we already have a position in the symbol (will be updated with actual symbol)
+    const currentPosition = null; // Will be set in the calling function
+    
+    return {
+      holdings: holdings || [],
+      availableCash,
+      totalValue,
+      positionCount: portfolioSummary?.[0]?.position_count || 0,
+      largestPosition: portfolioSummary?.[0]?.largest_position_symbol || null,
+      largestPositionPercentage: portfolioSummary?.[0]?.largest_position_percentage || 0,
+      currentPosition,
+      totalPortfolioValue: totalValue + availableCash
+    };
+  } catch (error) {
+    console.error('Error getting portfolio data:', error);
+    return {
+      holdings: [],
+      availableCash: 0,
+      totalValue: 0,
+      positionCount: 0,
+      largestPosition: null,
+      largestPositionPercentage: 0,
+      currentPosition: null,
+      totalPortfolioValue: 0
+    };
+  }
+}
 
 async function calculateTechnicalIndicators(supabase: any, symbol: string): Promise<TechnicalIndicators> {
   // Get historical data for technical indicators
@@ -173,9 +232,15 @@ async function getSentimentData(supabase: any, symbol: string): Promise<any> {
   }
 }
 
-function generateSelfQuestion(symbol: string, marketData: any, indicators: TechnicalIndicators, sentimentData: any): string {
+function generateSelfQuestion(symbol: string, marketData: any, indicators: TechnicalIndicators, sentimentData: any, portfolioData: any): string {
   const priceChange = marketData.change_percent_24h;
   const price = marketData.price;
+  
+  // Check if we have an existing position
+  const currentPosition = portfolioData.holdings.find((h: any) => h.symbol === symbol);
+  const portfolioContext = currentPosition 
+    ? `We currently own ${currentPosition.quantity} ${symbol} (worth $${currentPosition.current_value.toFixed(2)}, ${((currentPosition.current_value / portfolioData.totalPortfolioValue) * 100).toFixed(1)}% of portfolio)`
+    : `We don't currently own ${symbol}`;
   
   // Determine market condition triggers
   const triggers = [];
@@ -209,14 +274,25 @@ function generateSelfQuestion(symbol: string, marketData: any, indicators: Techn
     triggers.push("high social media buzz");
   }
 
-  // Generate contextual question
-  const action = priceChange > 2 ? "sell" : priceChange < -2 ? "buy" : "hold";
+  // Add portfolio concentration warning
+  if (portfolioData.largestPositionPercentage > 50) {
+    triggers.push("high portfolio concentration risk");
+  }
+
+  // Generate contextual question with portfolio awareness
+  let action = "hold";
+  if (currentPosition) {
+    action = priceChange > 2 ? "sell some" : priceChange < -5 ? "buy more" : "hold";
+  } else {
+    action = priceChange < -2 ? "buy" : "hold";
+  }
+  
   const triggerText = triggers.length > 0 ? triggers.join(" and ") : "current market conditions";
   
-  return `Should we ${action} ${symbol} based on ${triggerText}? Current price: $${price.toFixed(4)}, 24h change: ${priceChange.toFixed(2)}%, RSI: ${indicators.rsi.toFixed(1)}, sentiment: ${sentimentData.sentiment_label} (${sentimentData.sentiment_score}/100)`;
+  return `${portfolioContext}. Available cash: $${portfolioData.availableCash.toFixed(2)}. Should we ${action} ${symbol} based on ${triggerText}? Current price: $${price.toFixed(4)}, 24h change: ${priceChange.toFixed(2)}%, RSI: ${indicators.rsi.toFixed(1)}, sentiment: ${sentimentData.sentiment_label} (${sentimentData.sentiment_score}/100)`;
 }
 
-async function analyzeWithGoogleAI(apiKey: string, question: string, marketData: any, indicators: TechnicalIndicators, riskSettings: any, sentimentData: any) {
+async function analyzeWithGoogleAI(apiKey: string, question: string, marketData: any, indicators: TechnicalIndicators, riskSettings: any, sentimentData: any, portfolioData: any) {
   const systemPrompt = `You are an expert cryptocurrency trading assistant. Analyze the market data and answer the trading question with a specific decision.
 
 IMPORTANT: You must respond with a valid JSON object containing exactly these fields:
@@ -226,13 +302,16 @@ IMPORTANT: You must respond with a valid JSON object containing exactly these fi
 - suggestedQuantity: number (suggested trade amount in USD)
 
 Consider these factors:
-1. Price trends and momentum
-2. Technical indicators (RSI, SMA)
-3. Volume patterns
-4. Risk management principles
-5. Market volatility
+1. Current portfolio holdings and diversification
+2. Available cash and position sizes
+3. Price trends and momentum
+4. Technical indicators (RSI, SMA)
+5. Volume patterns
+6. Risk management principles
+7. Market volatility
+8. Portfolio concentration risk
 
-Be conservative with suggestions and prioritize capital preservation.`;
+Be conservative with suggestions and prioritize capital preservation. Consider the user's current portfolio when making recommendations.`;
 
   const userPrompt = `${question}
 
@@ -249,6 +328,13 @@ Technical Indicators:
 - Price Change (5min): ${indicators.priceChange.toFixed(2)}%
 - Volume Change: ${indicators.volumeChange.toFixed(2)}%
 
+Portfolio Information:
+- Available Cash: $${portfolioData.availableCash.toFixed(2)}
+- Total Portfolio Value: $${portfolioData.totalPortfolioValue.toFixed(2)}
+- Number of Positions: ${portfolioData.positionCount}
+- Largest Position: ${portfolioData.largestPosition || 'None'} (${portfolioData.largestPositionPercentage.toFixed(1)}%)
+- Cash Percentage: ${((portfolioData.availableCash / portfolioData.totalPortfolioValue) * 100).toFixed(1)}%
+
 Sentiment Analysis:
 - Sentiment Score: ${sentimentData.sentiment_score}/100 (${sentimentData.sentiment_label})
 - Social Media Buzz: ${sentimentData.social_media_buzz}
@@ -259,7 +345,7 @@ Risk Settings:
 - Stop Loss: ${((riskSettings?.stopLoss || 0.02) * 100).toFixed(1)}%
 - Risk Level: ${riskSettings?.riskLevel || 'medium'}
 
-Provide your trading recommendation as a JSON response, considering all factors including market sentiment.`;
+Provide your trading recommendation as a JSON response, considering all factors including current portfolio allocation and available capital.`;
 
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
