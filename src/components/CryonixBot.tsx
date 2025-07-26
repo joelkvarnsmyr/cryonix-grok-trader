@@ -238,6 +238,87 @@ const CryonixBot = () => {
     }
   };
 
+  const runTestCycle = async () => {
+    if (!user) return;
+    
+    setLoading(true);
+    toast({
+      title: "🚀 Starting Test Cycle",
+      description: "Running first trading cycle on TESTNET...",
+    });
+
+    try {
+      // 1. Data Fetch Service
+      console.log('📊 Calling data-fetch-service...');
+      const dataResponse = await supabase.functions.invoke('data-fetch-service', {
+        body: {
+          symbols: ['BTCUSDT'],
+          timeframe: '1m', 
+          newsKeywords: ['bitcoin', 'btc', 'crypto']
+        }
+      });
+      
+      if (dataResponse.error) throw dataResponse.error;
+      console.log('✅ Market data fetched:', dataResponse.data);
+
+      // 2. AI Market Analysis  
+      console.log('🧠 Calling market-analysis-ai...');
+      const analysisResponse = await supabase.functions.invoke('market-analysis-ai', {
+        body: {
+          botId: bot?.id,
+          symbol: 'BTCUSDT',
+          marketData: dataResponse.data?.marketData?.successful?.[0] || {
+            price: 95000,
+            change_percent_24h: 2.5,
+            volume_24h: 1000000,
+            market_cap: 1800000000000
+          },
+          riskSettings: {
+            riskLevel: 'medium',
+            maxTradeAmount: 0.05,
+            stopLoss: 0.02
+          }
+        }
+      });
+
+      if (analysisResponse.error) throw analysisResponse.error;
+      console.log('✅ AI analysis completed:', analysisResponse.data);
+
+      // 3. Risk Analysis
+      console.log('⚖️ Calling risk-analysis...');
+      const riskResponse = await supabase.functions.invoke('risk-analysis', {
+        body: {
+          botId: bot?.id,
+          symbol: 'BTCUSDT',
+          action: analysisResponse.data?.decision || 'buy',
+          quantity: analysisResponse.data?.suggestedQuantity || 50,
+          price: dataResponse.data?.marketData?.successful?.[0]?.price || 95000
+        }
+      });
+
+      if (riskResponse.error) throw riskResponse.error;
+      console.log('✅ Risk analysis completed:', riskResponse.data);
+
+      toast({
+        title: "✅ Test Cycle Complete!",
+        description: `Decision: ${analysisResponse.data?.decision?.toUpperCase() || 'HOLD'} | Risk Score: ${riskResponse.data?.riskScore || 'N/A'} | Approved: ${riskResponse.data?.approved ? 'YES' : 'NO'}`,
+      });
+
+      // Refresh bot data
+      await loadBot();
+
+    } catch (error) {
+      console.error('❌ Test cycle failed:', error);
+      toast({
+        title: "❌ Test Cycle Failed",
+        description: error.message || 'Unknown error occurred',
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const variants = {
       running: { variant: 'default' as const, icon: Play, color: 'text-success' },
@@ -453,10 +534,16 @@ const CryonixBot = () => {
         
         <div className="flex gap-2">
           {bot.status === 'stopped' && (
-            <Button onClick={() => handleBotAction('start')} className="gap-2">
-              <Play className="h-4 w-4" />
-              Start Trading
-            </Button>
+            <>
+              <Button onClick={() => handleBotAction('start')} className="gap-2">
+                <Play className="h-4 w-4" />
+                Start Trading
+              </Button>
+              <Button onClick={runTestCycle} variant="outline" disabled={loading} className="gap-2">
+                <Brain className="h-4 w-4" />
+                {loading ? 'Testing...' : 'Run Test Cycle'}
+              </Button>
+            </>
           )}
           {bot.status === 'running' && (
             <>
@@ -467,6 +554,10 @@ const CryonixBot = () => {
               <Button onClick={() => handleBotAction('stop')} variant="destructive" className="gap-2">
                 <Square className="h-4 w-4" />
                 Stop
+              </Button>
+              <Button onClick={runTestCycle} variant="secondary" disabled={loading} className="gap-2">
+                <Brain className="h-4 w-4" />
+                Test Cycle
               </Button>
             </>
           )}
@@ -479,6 +570,10 @@ const CryonixBot = () => {
               <Button onClick={() => handleBotAction('stop')} variant="outline" className="gap-2">
                 <Square className="h-4 w-4" />
                 Stop
+              </Button>
+              <Button onClick={runTestCycle} variant="secondary" disabled={loading} className="gap-2">
+                <Brain className="h-4 w-4" />
+                Test Cycle
               </Button>
             </>
           )}
