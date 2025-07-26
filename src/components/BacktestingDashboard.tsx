@@ -144,6 +144,38 @@ const BacktestingDashboard = () => {
     }
   };
   
+  const testBinanceAPI = async () => {
+    try {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { toast } = await import('sonner');
+      
+      toast.info('Testar Binance API-anslutning...');
+      
+      const response = await supabase.functions.invoke('binance-test');
+      
+      if (response.error) {
+        toast.error('API-test misslyckades: ' + response.error.message);
+        return;
+      }
+      
+      const result = response.data;
+      if (result.success) {
+        toast.success('API-test lyckades! Server är whitelistad.');
+      } else {
+        toast.error('API-test misslyckades: ' + result.tests.error);
+        if (result.tests.error.includes('whitelisted')) {
+          toast.info('Lägg till Supabase Edge Function IPs i din Binance API whitelist');
+        }
+      }
+      
+      console.log('Binance API test result:', result);
+      
+    } catch (error) {
+      const { toast } = await import('sonner');
+      toast.error('Fel vid API-test: ' + error.message);
+    }
+  };
+
   const getScenarioName = (scenario: string) => {
     switch (scenario) {
       case 'normal': return 'Normal Market';
@@ -181,6 +213,13 @@ const BacktestingDashboard = () => {
               <span className="text-sm text-warning">Kör backtest...</span>
             </div>
           )}
+          <Button 
+            onClick={testBinanceAPI} 
+            variant="outline"
+            className="mr-2"
+          >
+            Testa API
+          </Button>
           <Button 
             onClick={runBacktest} 
             disabled={isRunning}
