@@ -60,12 +60,7 @@ const Layout = ({ children }: LayoutProps) => {
         <main className="flex-1">
           <header className="h-14 flex items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
             <div className="flex items-center gap-4">
-              <SidebarTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9">
-                  <Menu className="h-5 w-5" />
-                  <span className="sr-only">Toggle sidebar</span>
-                </Button>
-              </SidebarTrigger>
+              <SidebarTrigger className="h-9 w-9" />
               <h1 className="font-semibold">Cryonix Trading Platform</h1>
             </div>
             <div className="flex items-center gap-4">
