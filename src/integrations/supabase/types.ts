@@ -416,6 +416,14 @@ export type Database = {
           largest_position_percentage: number
         }[]
       }
+      initialize_bot_portfolio: {
+        Args: {
+          p_user_id: string
+          p_bot_id: string
+          p_starting_balance?: number
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
