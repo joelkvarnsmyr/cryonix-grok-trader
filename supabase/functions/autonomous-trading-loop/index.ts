@@ -7,13 +7,10 @@ const corsHeaders = {
 };
 
 interface TradingLoopRequest {
-  action: 'start' | 'stop' | 'check_status';
+  action: 'start' | 'stop' | 'check_status' | 'run_cycle';
   interval?: number; // minutes, default 5
+  userId?: string;
 }
-
-// Global state for the autonomous loop
-let isLoopRunning = false;
-let loopIntervalId: number | null = null;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -23,33 +20,24 @@ serve(async (req) => {
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '' // Use service role for cron access
     );
 
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('No authorization header');
-    }
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
-
-    if (authError || !user) {
-      throw new Error('Authentication failed');
-    }
-
-    const { action, interval = 5 }: TradingLoopRequest = await req.json();
+    const { action, interval = 5, userId }: TradingLoopRequest = await req.json();
 
     switch (action) {
       case 'start':
-        if (isLoopRunning) {
-          return new Response(JSON.stringify({ 
-            success: false, 
-            message: 'Autonomous loop is already running' 
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
+        const authHeader = req.headers.get('Authorization');
+        if (!authHeader) {
+          throw new Error('No authorization header');
+        }
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser(
+          authHeader.replace('Bearer ', '')
+        );
+
+        if (authError || !user) {
+          throw new Error('Authentication failed');
         }
 
         await startAutonomousLoop(supabase, user.id, interval);
@@ -63,7 +51,7 @@ serve(async (req) => {
         });
 
       case 'stop':
-        stopAutonomousLoop();
+        await stopAutonomousLoop(supabase);
         
         return new Response(JSON.stringify({ 
           success: true, 
@@ -73,10 +61,25 @@ serve(async (req) => {
         });
 
       case 'check_status':
+        const status = await checkLoopStatus(supabase);
+        
         return new Response(JSON.stringify({ 
           success: true, 
-          isRunning: isLoopRunning,
-          message: isLoopRunning ? 'Loop is running' : 'Loop is stopped'
+          isRunning: status.isRunning,
+          message: status.isRunning ? 'Loop is running' : 'Loop is stopped',
+          lastRun: status.lastRun
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+
+      case 'run_cycle':
+        // This will be called by cron job
+        await runTradingCycle(supabase, userId);
+        
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: 'Trading cycle completed',
+          timestamp: new Date().toISOString()
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -98,23 +101,137 @@ serve(async (req) => {
 });
 
 async function startAutonomousLoop(supabase: any, userId: string, intervalMinutes: number) {
-  isLoopRunning = true;
+  console.log('Starting autonomous loop for user:', userId);
+
+  // Create/update system config to track loop status
+  await supabase
+    .from('system_config')
+    .upsert({
+      user_id: userId,
+      config_key: 'autonomous_loop_status',
+      config_value: {
+        isRunning: true,
+        startedAt: new Date().toISOString(),
+        interval: intervalMinutes,
+        lastRun: null
+      }
+    });
+
+  // Set up the cron job using pg_cron
+  const cronExpression = `*/${intervalMinutes} * * * *`; // Every N minutes
   
+  try {
+    // First, remove any existing cron job
+    await supabase.rpc('cron_unschedule', { job_name: `trading_loop_${userId}` });
+  } catch (error) {
+    console.log('No existing cron job to remove');
+  }
+
+  // Schedule new cron job
+  await supabase.rpc('cron_schedule', {
+    job_name: `trading_loop_${userId}`,
+    cron: cronExpression,
+    command: `
+      SELECT net.http_post(
+        url := '${Deno.env.get('SUPABASE_URL')}/functions/v1/autonomous-trading-loop',
+        headers := '{"Content-Type": "application/json", "Authorization": "Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}"}'::jsonb,
+        body := '{"action": "run_cycle", "userId": "${userId}"}'::jsonb
+      );
+    `
+  });
+
   // Log loop start
   await logSystemActivity(supabase, userId, 'system', 'Autonomous Loop Started', `Trading loop started with ${intervalMinutes} minute interval`, 'success');
+  
+  console.log(`Autonomous loop started for user ${userId} with ${intervalMinutes} minute interval`);
+}
 
-  // Define configurable watchlist pairs
-  const watchlistPairs = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'DOGEUSDT'];
+async function stopAutonomousLoop(supabase: any) {
+  console.log('Stopping autonomous loop');
 
-  // Main autonomous loop
-  const runTradingCycle = async () => {
-    if (!isLoopRunning) return;
+  // Get all users with running loops
+  const { data: runningLoops } = await supabase
+    .from('system_config')
+    .select('user_id, config_value')
+    .eq('config_key', 'autonomous_loop_status');
 
-    console.log(`Starting trading cycle at ${new Date().toISOString()}`);
-    
-    try {
-      // 1. Fetch comprehensive market data first
-      await updateMarketDataCache(supabase, userId, watchlistPairs);
+  if (runningLoops) {
+    for (const loop of runningLoops) {
+      if (loop.config_value?.isRunning) {
+        // Remove cron job
+        try {
+          await supabase.rpc('cron_unschedule', { job_name: `trading_loop_${loop.user_id}` });
+        } catch (error) {
+          console.log(`No cron job found for user ${loop.user_id}`);
+        }
+
+        // Update status
+        await supabase
+          .from('system_config')
+          .update({
+            config_value: {
+              ...loop.config_value,
+              isRunning: false,
+              stoppedAt: new Date().toISOString()
+            }
+          })
+          .eq('user_id', loop.user_id)
+          .eq('config_key', 'autonomous_loop_status');
+
+        await logSystemActivity(supabase, loop.user_id, 'system', 'Autonomous Loop Stopped', 'Trading loop has been stopped', 'info');
+      }
+    }
+  }
+}
+
+async function checkLoopStatus(supabase: any): Promise<{ isRunning: boolean; lastRun: string | null }> {
+  try {
+    const { data: config } = await supabase
+      .from('system_config')
+      .select('config_value')
+      .eq('config_key', 'autonomous_loop_status')
+      .single();
+
+    if (config?.config_value) {
+      return {
+        isRunning: config.config_value.isRunning || false,
+        lastRun: config.config_value.lastRun || null
+      };
+    }
+
+    return { isRunning: false, lastRun: null };
+  } catch (error) {
+    console.error('Error checking loop status:', error);
+    return { isRunning: false, lastRun: null };
+  }
+}
+
+async function runTradingCycle(supabase: any, userId: string) {
+  console.log(`Running trading cycle for user ${userId} at ${new Date().toISOString()}`);
+  
+  try {
+    // Update last run timestamp
+    const { data: currentConfig } = await supabase
+      .from('system_config')
+      .select('config_value')
+      .eq('user_id', userId)
+      .eq('config_key', 'autonomous_loop_status')
+      .single();
+
+    if (currentConfig?.config_value?.isRunning) {
+      await supabase
+        .from('system_config')
+        .update({
+          config_value: {
+            ...currentConfig.config_value,
+            lastRun: new Date().toISOString()
+          }
+        })
+        .eq('user_id', userId)
+        .eq('config_key', 'autonomous_loop_status');
+
+      // 1. Fetch market data
+      await updateMarketDataCache(supabase, userId, ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'DOGEUSDT']);
       
       // 2. Check if it's near end of day (23:55 UTC) - close positions
       const now = new Date();
@@ -126,7 +243,7 @@ async function startAutonomousLoop(supabase: any, userId: string, intervalMinute
         return;
       }
 
-      // Get active trading bots
+      // 3. Get active trading bots
       const { data: activeBots } = await supabase
         .from('trading_bots')
         .select('*')
@@ -134,14 +251,12 @@ async function startAutonomousLoop(supabase: any, userId: string, intervalMinute
         .eq('status', 'running');
 
       if (!activeBots || activeBots.length === 0) {
-        console.log('No active bots found');
+        console.log('No active bots found for user:', userId);
         return;
       }
 
-      // Process each active bot
+      // 4. Process each active bot
       for (const bot of activeBots) {
-        if (!isLoopRunning) break;
-        
         try {
           await processBotTradingCycle(supabase, userId, bot);
         } catch (error) {
@@ -150,24 +265,11 @@ async function startAutonomousLoop(supabase: any, userId: string, intervalMinute
         }
       }
 
-    } catch (error) {
-      console.error('Error in trading cycle:', error);
-      await logSystemActivity(supabase, userId, 'system', 'Trading Cycle Error', `Error in autonomous loop: ${error.message}`, 'error');
+      await logSystemActivity(supabase, userId, 'system', 'Trading Cycle Completed', 'Successfully completed trading cycle', 'success');
     }
-  };
-
-  // Start the interval
-  loopIntervalId = setInterval(runTradingCycle, intervalMinutes * 60 * 1000);
-  
-  // Run immediately
-  await runTradingCycle();
-}
-
-function stopAutonomousLoop() {
-  isLoopRunning = false;
-  if (loopIntervalId) {
-    clearInterval(loopIntervalId);
-    loopIntervalId = null;
+  } catch (error) {
+    console.error('Error in trading cycle:', error);
+    await logSystemActivity(supabase, userId, 'system', 'Trading Cycle Error', `Error in autonomous loop: ${error.message}`, 'error');
   }
 }
 
@@ -214,7 +316,6 @@ async function getLatestMarketData(supabase: any, symbol: string) {
 
 async function analyzeMarketWithAI(supabase: any, userId: string, bot: any, marketData: any) {
   try {
-    // Call the market analysis function
     const { data, error } = await supabase.functions.invoke('market-analysis-ai', {
       body: {
         botId: bot.id,
@@ -295,7 +396,6 @@ async function validateTradeRisk(supabase: any, userId: string, bot: any, analys
 
 async function executeTrade(supabase: any, userId: string, bot: any, analysisResult: any, quantity: number) {
   try {
-    // Call the trading bot function to execute
     const { error } = await supabase.functions.invoke('trading-bot', {
       body: {
         action: 'execute_autonomous_trade',
@@ -318,9 +418,8 @@ async function executeTrade(supabase: any, userId: string, bot: any, analysisRes
 }
 
 async function closeAllPositions(supabase: any, userId: string) {
-  console.log('End of day - closing all positions');
+  console.log('End of day - closing all positions for user:', userId);
   
-  // Get all active bots
   const { data: activeBots } = await supabase
     .from('trading_bots')
     .select('*')
@@ -331,7 +430,6 @@ async function closeAllPositions(supabase: any, userId: string) {
 
   for (const bot of activeBots) {
     try {
-      // Force sell all positions for this bot
       await supabase.functions.invoke('trading-bot', {
         body: {
           action: 'close_all_positions',
@@ -347,33 +445,12 @@ async function closeAllPositions(supabase: any, userId: string) {
   }
 }
 
-async function logBotActivity(supabase: any, userId: string, botId: string, activityType: string, title: string, description: string, status: string = 'info', data: any = {}) {
-  try {
-    await supabase
-      .from('bot_activities')
-      .insert({
-        user_id: userId,
-        bot_id: botId,
-        activity_type: activityType,
-        title,
-        description,
-        status,
-        data
-      });
-  } catch (error) {
-    console.error('Error logging bot activity:', error);
-  }
-}
-
 async function updateMarketDataCache(supabase: any, userId: string, symbols: string[]) {
   try {
-    // Fetch comprehensive market data using the new enhanced function
     const promises = [
-      // Realtime data
       supabase.functions.invoke('enhanced-market-data', {
         body: { action: 'fetch_realtime', symbols }
       }),
-      // Sentiment data
       supabase.functions.invoke('enhanced-market-data', {
         body: { action: 'fetch_sentiment', symbols }
       })
@@ -381,7 +458,6 @@ async function updateMarketDataCache(supabase: any, userId: string, symbols: str
 
     const [realtimeResponse, sentimentResponse] = await Promise.all(promises);
 
-    // Update market_data table with fresh data
     if (realtimeResponse.data?.success && realtimeResponse.data?.data) {
       for (const marketData of realtimeResponse.data.data) {
         await supabase
@@ -399,7 +475,6 @@ async function updateMarketDataCache(supabase: any, userId: string, symbols: str
       }
     }
 
-    // Log sentiment data as system activity
     if (sentimentResponse.data?.success && sentimentResponse.data?.data) {
       const sentiment = sentimentResponse.data.data;
       await logSystemActivity(
@@ -418,6 +493,24 @@ async function updateMarketDataCache(supabase: any, userId: string, symbols: str
   } catch (error) {
     console.error('Error updating market data cache:', error);
     await logSystemActivity(supabase, userId, 'system', 'Market Data Error', `Failed to update market data: ${error.message}`, 'error');
+  }
+}
+
+async function logBotActivity(supabase: any, userId: string, botId: string, activityType: string, title: string, description: string, status: string = 'info', data: any = {}) {
+  try {
+    await supabase
+      .from('bot_activities')
+      .insert({
+        user_id: userId,
+        bot_id: botId,
+        activity_type: activityType,
+        title,
+        description,
+        status,
+        data
+      });
+  } catch (error) {
+    console.error('Error logging bot activity:', error);
   }
 }
 
