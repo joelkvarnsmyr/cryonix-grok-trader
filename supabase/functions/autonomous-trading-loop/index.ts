@@ -209,7 +209,7 @@ async function runTradingCycle(supabase: any, userId: string) {
         .eq('user_id', userId)
         .eq('config_key', 'autonomous_loop_status');
 
-      // 1. Fetch market data
+      // 1. Fetch market data using dedicated service
       await updateMarketDataCache(supabase, userId, ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'DOGEUSDT']);
       
       // 2. Check if it's near end of day (23:55 UTC) - close positions
@@ -463,52 +463,98 @@ async function closeAllPositions(supabase: any, userId: string) {
 
 async function updateMarketDataCache(supabase: any, userId: string, symbols: string[]) {
   try {
-    const promises = [
-      supabase.functions.invoke('enhanced-market-data', {
-        body: { action: 'fetch_realtime', symbols }
-      }),
-      supabase.functions.invoke('enhanced-market-data', {
-        body: { action: 'fetch_sentiment', symbols }
-      })
-    ];
+    console.log(`Updating market data cache for symbols: ${symbols.join(', ')}`);
+    
+    // Use the dedicated data-fetch-service
+    const serviceSupabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
-    const [realtimeResponse, sentimentResponse] = await Promise.all(promises);
-
-    if (realtimeResponse.data?.success && realtimeResponse.data?.data) {
-      for (const marketData of realtimeResponse.data.data) {
-        await supabase
-          .from('market_data')
-          .upsert({
-            symbol: marketData.symbol,
-            price: marketData.price,
-            change_24h: marketData.change_24h,
-            change_percent_24h: marketData.change_percent_24h,
-            volume_24h: marketData.volume_24h,
-            high_24h: marketData.high_24h,
-            low_24h: marketData.low_24h,
-            timestamp: marketData.timestamp
-          });
+    const { data, error } = await serviceSupabase.functions.invoke('data-fetch-service', {
+      body: { 
+        action: 'fetch_all_data', 
+        symbols: symbols 
       }
+    });
+
+    if (error) {
+      console.error('Data fetch service error:', error);
+      throw error;
     }
 
-    if (sentimentResponse.data?.success && sentimentResponse.data?.data) {
-      const sentiment = sentimentResponse.data.data;
+    if (!data?.success) {
+      throw new Error(`Data fetch failed: ${data?.error || 'Unknown error'}`);
+    }
+
+    const fetchResult = data.result;
+    const marketData = fetchResult.marketData;
+    const sentiment = fetchResult.sentiment;
+
+    // Log the results
+    if (marketData?.successful?.length > 0) {
+      await logSystemActivity(
+        supabase, 
+        userId, 
+        'system', 
+        'Market Data Updated', 
+        `Successfully updated ${marketData.successful.length}/${symbols.length} symbols`,
+        'success',
+        { 
+          symbols: symbols,
+          successful: marketData.successful.length,
+          failed: marketData.failed.length,
+          storedRecords: marketData.stored,
+          sentiment: sentiment?.success ? sentiment.analysis : 'No sentiment available'
+        }
+      );
+
+      console.log(`✅ Market data cache updated: ${marketData.successful.length}/${symbols.length} symbols`);
+    } else {
+      await logSystemActivity(
+        supabase, 
+        userId, 
+        'system', 
+        'Market Data Warning', 
+        `No market data was successfully fetched for any symbols`,
+        'warning',
+        { 
+          symbols: symbols,
+          errors: fetchResult.summary.errors
+        }
+      );
+    }
+
+    // Log sentiment analysis if available
+    if (sentiment?.success) {
       await logSystemActivity(
         supabase, 
         userId, 
         'system', 
         'Market Sentiment Updated', 
-        `Overall market: ${sentiment.overall_market_sentiment}`,
+        sentiment.analysis,
         'info',
-        { sentimentData: sentiment }
+        { 
+          sentimentData: sentiment,
+          marketSummary: sentiment.marketSummary
+        }
       );
     }
-
-    await logSystemActivity(supabase, userId, 'system', 'Market Data Updated', `Updated data for ${symbols.join(', ')}`, 'success');
     
   } catch (error) {
     console.error('Error updating market data cache:', error);
-    await logSystemActivity(supabase, userId, 'system', 'Market Data Error', `Failed to update market data: ${error.message}`, 'error');
+    await logSystemActivity(
+      supabase, 
+      userId, 
+      'system', 
+      'Market Data Error', 
+      `Failed to update market data: ${error.message}`, 
+      'error',
+      {
+        symbols: symbols,
+        errorDetails: error.message
+      }
+    );
   }
 }
 
