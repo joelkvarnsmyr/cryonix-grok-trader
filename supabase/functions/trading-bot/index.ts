@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 interface BotAction {
-  action: 'start' | 'stop' | 'pause' | 'update_settings';
+  action: 'start' | 'stop' | 'pause' | 'update_settings' | 'execute_autonomous_trade' | 'close_all_positions';
   botId: string;
   settings?: {
     riskLevel?: number;
@@ -15,6 +15,11 @@ interface BotAction {
     stopLoss?: number;
     takeProfit?: number;
   };
+  // For autonomous trading
+  decision?: 'buy' | 'sell' | 'hold';
+  quantity?: number;
+  confidence?: number;
+  reason?: string;
 }
 
 interface TradeSignal {
@@ -71,8 +76,14 @@ serve(async (req) => {
         // Log bot start activity
         await logBotActivity(supabase, user.id, botId, 'status_change', 'Bot Started', 'Trading bot has been started and is now active', 'success');
 
-        // Generate initial trade signal (demo logic)
-        await generateTradeSignal(supabase, botId, user.id);
+        // Start autonomous trading loop
+        try {
+          await supabase.functions.invoke('autonomous-trading-loop', {
+            body: { action: 'start', interval: 5 }
+          });
+        } catch (error) {
+          console.log('Autonomous loop start attempt:', error.message);
+        }
         
         return new Response(JSON.stringify({ 
           success: true, 
@@ -145,6 +156,74 @@ serve(async (req) => {
           message: 'Bot settings updated successfully',
           botId,
           settings 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+
+      case 'execute_autonomous_trade':
+        const { decision, quantity, confidence, reason } = await req.json();
+        
+        if (decision === 'hold') {
+          await logBotActivity(supabase, user.id, botId, 'analysis', 'Hold Decision', reason || 'AI recommends holding position', 'info');
+          return new Response(JSON.stringify({ 
+            success: true, 
+            message: 'Hold decision logged',
+            decision: 'hold'
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        // Get bot details for symbol
+        const { data: bot } = await supabase
+          .from('trading_bots')
+          .select('*')
+          .eq('id', botId)
+          .eq('user_id', user.id)
+          .single();
+
+        if (!bot) {
+          throw new Error('Bot not found');
+        }
+
+        // Get market price
+        const { data: marketData } = await supabase
+          .from('market_data')
+          .select('price')
+          .eq('symbol', bot.symbol)
+          .order('timestamp', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!marketData) {
+          throw new Error('Market data not available');
+        }
+
+        // Execute the autonomous trade
+        const signal: TradeSignal = {
+          symbol: bot.symbol,
+          action: decision as 'buy' | 'sell',
+          quantity: quantity || 50,
+          confidence: confidence || 70,
+          reason: reason || 'Autonomous AI trade decision'
+        };
+
+        await executeRealTrade(supabase, botId, user.id, signal, marketData.price);
+        
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: 'Autonomous trade executed',
+          signal
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+
+      case 'close_all_positions':
+        await closeAllPositionsForBot(supabase, user.id, botId);
+        
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: 'All positions closed for end of day'
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -411,5 +490,58 @@ async function generateTradeSignal(supabase: any, botId: string, userId: string)
       priceChange: priceChange,
       currentPrice: marketData.price
     });
+  }
+}
+
+async function closeAllPositionsForBot(supabase: any, userId: string, botId: string) {
+  try {
+    // Get bot details
+    const { data: bot } = await supabase
+      .from('trading_bots')
+      .select('*')
+      .eq('id', botId)
+      .eq('user_id', userId)
+      .single();
+
+    if (!bot) return;
+
+    // Log position closing
+    await logBotActivity(supabase, userId, botId, 'end_of_day', 'Closing All Positions', 'End of day - closing all open positions', 'info');
+
+    // Get current market price
+    const { data: marketData } = await supabase
+      .from('market_data')
+      .select('price')
+      .eq('symbol', bot.symbol)
+      .order('timestamp', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!marketData) {
+      await logBotActivity(supabase, userId, botId, 'error', 'No Market Data for Close', 'Cannot close positions without market data', 'error');
+      return;
+    }
+
+    // Check if we have any open positions to close
+    // For simplicity, we'll assume if current_balance < initial_balance, we have crypto positions to sell
+    if (bot.current_balance < bot.initial_balance * 0.95) { // Account for some trading fees
+      const estimatedCryptoValue = bot.initial_balance - bot.current_balance;
+      
+      // Create a sell signal to close positions
+      const closeSignal: TradeSignal = {
+        symbol: bot.symbol,
+        action: 'sell',
+        quantity: estimatedCryptoValue,
+        confidence: 100,
+        reason: 'End of day position close'
+      };
+
+      await executeRealTrade(supabase, botId, userId, closeSignal, marketData.price);
+    } else {
+      await logBotActivity(supabase, userId, botId, 'end_of_day', 'No Positions to Close', 'No open positions found to close', 'info');
+    }
+  } catch (error) {
+    console.error('Error closing positions:', error);
+    await logBotActivity(supabase, userId, botId, 'error', 'Position Close Error', `Failed to close positions: ${error.message}`, 'error');
   }
 }
