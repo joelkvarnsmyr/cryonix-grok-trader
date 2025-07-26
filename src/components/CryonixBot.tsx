@@ -121,6 +121,18 @@ const CryonixBot = () => {
 
       if (!error && data?.isRunning) {
         setAutonomousLoopStatus('running');
+        // Synka bot status med autonomous loop status
+        if (bot?.status === 'stopped') {
+          await supabase
+            .from('trading_bots')
+            .update({ status: 'running', updated_at: new Date().toISOString() })
+            .eq('id', bot.id)
+            .eq('user_id', user?.id);
+          
+          setBot(prev => prev ? { ...prev, status: 'running' } : null);
+        }
+      } else {
+        setAutonomousLoopStatus('stopped');
       }
     } catch (error) {
       console.log('Could not check autonomous loop status:', error);
@@ -193,22 +205,30 @@ const CryonixBot = () => {
       
       if (action === 'start') {
         setAutonomousLoopStatus('running');
+        // Dubbelkolla att autonomous loop verkligen körs
+        setTimeout(checkAutonomousLoopStatus, 2000);
       } else if (action === 'stop') {
         setAutonomousLoopStatus('stopped');
       }
 
       toast({
-        title: "Success",
-        description: `Bot ${action}ed successfully`,
+        title: action === 'start' ? "Bot Started" : action === 'pause' ? "Bot Paused" : "Bot Stopped",
+        description: action === 'start' 
+          ? "Cryonix AI Trader is now active and analyzing market conditions" 
+          : action === 'pause' 
+          ? "Trading bot is paused - no new trades will be executed"
+          : "Trading bot has been stopped",
+        variant: action === 'stop' ? "destructive" : "default",
       });
 
-      // Refresh bot data
-      loadBot();
+      // Ladda om bot-data för att säkerställa synkronisering
+      setTimeout(loadBot, 1000);
+
     } catch (error) {
       console.error(`Error ${action}ing bot:`, error);
       toast({
-        title: "Error",
-        description: `Failed to ${action} bot`,
+        title: "Action Failed",
+        description: error.message || `Failed to ${action} the trading bot`,
         variant: "destructive",
       });
     }
