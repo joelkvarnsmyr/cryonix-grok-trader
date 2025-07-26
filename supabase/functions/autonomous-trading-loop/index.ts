@@ -268,16 +268,16 @@ async function processBotTradingCycle(supabase: any, userId: string, bot: any) {
     return;
   }
 
-  // 3. Advanced risk validation
-  const riskValidation = await validateTradeRisk(supabase, userId, bot, analysisResult);
-  if (!riskValidation.approved) {
-    await logBotActivity(supabase, userId, bot.id, 'risk_rejected', 'Trade Rejected by Risk Management', riskValidation.reason, 'warning');
+  // 3. Advanced risk analysis with dedicated risk engine
+  const riskAnalysis = await performAdvancedRiskAnalysis(supabase, userId, bot, analysisResult, marketData);
+  if (!riskAnalysis.approved) {
+    await logBotActivity(supabase, userId, bot.id, 'risk_rejected', 'Trade Rejected by Risk Analysis', riskAnalysis.reason, 'warning', { riskAnalysis });
     return;
   }
 
-  // 4. Execute trade if approved
+  // 4. Execute trade if approved with risk-adjusted quantity
   if (analysisResult.decision !== 'hold') {
-    await executeTrade(supabase, userId, bot, analysisResult, riskValidation.adjustedQuantity);
+    await executeTrade(supabase, userId, bot, analysisResult, riskAnalysis.recommendedQuantity, riskAnalysis);
   }
 }
 
@@ -318,6 +318,39 @@ async function analyzeMarketWithAI(supabase: any, userId: string, bot: any, mark
   }
 }
 
+async function performAdvancedRiskAnalysis(supabase: any, userId: string, bot: any, analysisResult: any, marketData: any) {
+  try {
+    // Get current session for authorization
+    const { data, error } = await supabase.functions.invoke('risk-analysis', {
+      body: {
+        botId: bot.id,
+        symbol: bot.symbol,
+        proposedTrade: {
+          action: analysisResult.decision,
+          quantity: analysisResult.suggestedQuantity,
+          price: marketData.price,
+          confidence: analysisResult.confidence
+        },
+        marketData: marketData,
+        analysisResult: analysisResult
+      }
+    });
+
+    if (error) {
+      console.error('Risk analysis error:', error);
+      // Fallback to basic risk validation if advanced analysis fails
+      return await validateTradeRisk(supabase, userId, bot, analysisResult);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error calling risk analysis:', error);
+    // Fallback to basic risk validation
+    return await validateTradeRisk(supabase, userId, bot, analysisResult);
+  }
+}
+
+// Backup basic risk validation (kept as fallback)
 async function validateTradeRisk(supabase: any, userId: string, bot: any, analysisResult: any) {
   // Get current daily trades count
   const today = new Date().toISOString().split('T')[0];
@@ -340,7 +373,8 @@ async function validateTradeRisk(supabase: any, userId: string, bot: any, analys
   if (dailyTradeCount >= maxDailyTrades) {
     return {
       approved: false,
-      reason: `Daily trade limit reached (${dailyTradeCount}/${maxDailyTrades})`
+      reason: `Daily trade limit reached (${dailyTradeCount}/${maxDailyTrades})`,
+      recommendedQuantity: 0
     };
   }
 
@@ -348,7 +382,8 @@ async function validateTradeRisk(supabase: any, userId: string, bot: any, analys
   if (analysisResult.confidence < 60) {
     return {
       approved: false,
-      reason: `Confidence too low (${analysisResult.confidence}% < 60%)`
+      reason: `Confidence too low (${analysisResult.confidence}% < 60%)`,
+      recommendedQuantity: 0
     };
   }
 
@@ -362,18 +397,19 @@ async function validateTradeRisk(supabase: any, userId: string, bot: any, analys
   if (quantity < minPositionSize) {
     return {
       approved: false,
-      reason: `Trade size too small ($${quantity} < $${minPositionSize})`
+      reason: `Trade size too small ($${quantity} < $${minPositionSize})`,
+      recommendedQuantity: 0
     };
   }
 
   return {
     approved: true,
-    adjustedQuantity: quantity,
-    reason: 'Trade approved by risk management'
+    recommendedQuantity: quantity,
+    reason: 'Trade approved by basic risk management'
   };
 }
 
-async function executeTrade(supabase: any, userId: string, bot: any, analysisResult: any, quantity: number) {
+async function executeTrade(supabase: any, userId: string, bot: any, analysisResult: any, quantity: number, riskAnalysis?: any) {
   try {
     const { error } = await supabase.functions.invoke('trading-bot', {
       body: {
@@ -382,7 +418,8 @@ async function executeTrade(supabase: any, userId: string, bot: any, analysisRes
         decision: analysisResult.decision,
         quantity: quantity,
         confidence: analysisResult.confidence,
-        reason: analysisResult.reasoning
+        reason: analysisResult.reasoning,
+        riskAnalysis: riskAnalysis // Include full risk analysis in trade execution
       }
     });
 
