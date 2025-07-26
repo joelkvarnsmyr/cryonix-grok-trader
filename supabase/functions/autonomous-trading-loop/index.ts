@@ -126,9 +126,6 @@ async function startAutonomousLoop(supabase: any, userId: string, intervalMinute
   // Immediately run one cycle to get things started
   await runTradingCycle(supabase, userId);
 
-  // Schedule recurring cycles using a simple interval approach
-  await scheduleRecurringCycles(supabase, userId, intervalMinutes);
-
   // Log loop start
   await logSystemActivity(supabase, userId, 'system', 'Autonomous Loop Started', `Trading loop started with ${intervalMinutes} minute interval`, 'success');
   
@@ -496,39 +493,8 @@ async function logBotActivity(supabase: any, userId: string, botId: string, acti
   }
 }
 
-async function scheduleRecurringCycles(supabase: any, userId: string, intervalMinutes: number) {
-  // Use self-calling timeout to create recurring cycles
-  async function cyclicExecution() {
-    try {
-      // Check if loop is still running
-      const { data: config } = await supabase
-        .from('system_config')
-        .select('config_value')
-        .eq('user_id', userId)
-        .eq('config_key', 'autonomous_loop_status')
-        .single();
-
-      if (config?.config_value?.isRunning) {
-        await runTradingCycle(supabase, userId);
-        
-        // Schedule next execution
-        setTimeout(cyclicExecution, intervalMinutes * 60 * 1000);
-      } else {
-        console.log(`Trading loop stopped for user ${userId}`);
-      }
-    } catch (error) {
-      console.error('Error in cyclic execution:', error);
-      await logSystemActivity(supabase, userId, 'system', 'Cycle Error', `Error in trading cycle: ${error.message}`, 'error');
-      
-      // Retry after 1 minute on error
-      setTimeout(cyclicExecution, 60 * 1000);
-    }
-  }
-
-  // Start the first cycle after the initial interval
-  setTimeout(cyclicExecution, intervalMinutes * 60 * 1000);
-  console.log(`Scheduled recurring cycles every ${intervalMinutes} minutes for user ${userId}`);
-}
+// Edge functions can't run long-term intervals, so we'll implement a trigger-based system
+// The frontend will need to call this function periodically to run cycles
 
 async function logSystemActivity(supabase: any, userId: string, botId: string, title: string, description: string, status: string = 'info', data: any = {}) {
   await logBotActivity(supabase, userId, botId, 'system', title, description, status, data);

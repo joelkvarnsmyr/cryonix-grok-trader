@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { tradingLoopService } from '@/services/tradingLoopService';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -115,11 +116,10 @@ const CryonixBot = () => {
 
   const checkAutonomousLoopStatus = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('autonomous-trading-loop', {
-        body: { action: 'check_status' }
-      });
+      const data = await tradingLoopService.checkStatus();
+      const serviceStatus = tradingLoopService.getStatus();
 
-      if (!error && data?.isRunning) {
+      if (data?.isRunning && serviceStatus.isRunning) {
         setAutonomousLoopStatus('running');
         // Synka bot status med autonomous loop status
         if (bot?.status === 'stopped') {
@@ -190,6 +190,7 @@ const CryonixBot = () => {
     if (!bot || !user) return;
 
     try {
+      // First update the bot status in database
       const { error } = await supabase.functions.invoke('trading-bot', {
         body: {
           action,
@@ -204,10 +205,12 @@ const CryonixBot = () => {
       setBot(prev => prev ? { ...prev, status: newStatus } : null);
       
       if (action === 'start') {
+        // Start the trading loop service
+        await tradingLoopService.startLoop(5); // 5 minute intervals
         setAutonomousLoopStatus('running');
-        // Dubbelkolla att autonomous loop verkligen körs
-        setTimeout(checkAutonomousLoopStatus, 2000);
       } else if (action === 'stop') {
+        // Stop the trading loop service
+        await tradingLoopService.stopLoop();
         setAutonomousLoopStatus('stopped');
       }
 
@@ -223,6 +226,7 @@ const CryonixBot = () => {
 
       // Ladda om bot-data för att säkerställa synkronisering
       setTimeout(loadBot, 1000);
+      setTimeout(checkAutonomousLoopStatus, 2000);
 
     } catch (error) {
       console.error(`Error ${action}ing bot:`, error);
