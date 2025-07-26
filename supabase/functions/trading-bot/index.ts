@@ -79,7 +79,10 @@ serve(async (req) => {
         // Start autonomous trading loop
         try {
           await supabase.functions.invoke('autonomous-trading-loop', {
-            body: { action: 'start', interval: 5 }
+            body: { action: 'start', interval: 5 },
+            headers: {
+              'Authorization': `Bearer ${authHeader.replace('Bearer ', '')}`
+            }
           });
         } catch (error) {
           console.log('Autonomous loop start attempt:', error.message);

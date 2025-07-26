@@ -32,7 +32,13 @@ serve(async (req) => {
           throw new Error('No authorization header');
         }
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser(
+        // Create authenticated client for user operations
+        const userSupabase = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+        );
+
+        const { data: { user }, error: authError } = await userSupabase.auth.getUser(
           authHeader.replace('Bearer ', '')
         );
 
