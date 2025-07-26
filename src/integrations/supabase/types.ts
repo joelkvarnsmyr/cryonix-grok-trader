@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      bot_activities: {
+        Row: {
+          activity_type: string
+          bot_id: string
+          created_at: string
+          data: Json | null
+          description: string
+          id: string
+          status: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          activity_type: string
+          bot_id: string
+          created_at?: string
+          data?: Json | null
+          description: string
+          id?: string
+          status?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          activity_type?: string
+          bot_id?: string
+          created_at?: string
+          data?: Json | null
+          description?: string
+          id?: string
+          status?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_activities_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "trading_bots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_data: {
         Row: {
           change_24h: number

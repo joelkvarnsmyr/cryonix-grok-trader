@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
+import BotActivityFeed from '@/components/BotActivityFeed';
 import { 
   Play, 
   Pause, 
@@ -545,6 +546,38 @@ const RealMultiBotManager = () => {
             );
           })
         )}
+      </div>
+
+      {/* Activity Feed */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <BotActivityFeed maxItems={30} />
+        <Card>
+          <CardHeader>
+            <CardTitle>System Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm">Active Bots</span>
+                <Badge variant="default">
+                  {bots.filter(bot => bot.status === 'running').length} / {bots.length}
+                </Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm">Total Uptime</span>
+                <span className="text-sm font-medium">
+                  {bots.reduce((sum, bot) => sum + bot.uptime_hours, 0)}h
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm">System Health</span>
+                <Badge variant="default" className="bg-success text-success-foreground">
+                  Operational
+                </Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
