@@ -1,10 +1,10 @@
 import Layout from '@/components/Layout';
-import ConfigurationPanel from '@/components/ConfigurationPanel';
+import CryonixConfiguration from '@/components/CryonixConfiguration';
 
 const Config = () => {
   return (
     <Layout>
-      <ConfigurationPanel />
+      <CryonixConfiguration />
     </Layout>
   );
 };
