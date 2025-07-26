@@ -846,3 +846,4 @@ async function fetchAllData(supabase: any, symbols: string[], timeframe: string,
     results.summary.errors.push(`Critical error: ${error.message}`);
     throw error;
   }
+}
