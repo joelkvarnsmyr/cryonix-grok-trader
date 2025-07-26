@@ -61,7 +61,7 @@ const Layout = ({ children }: LayoutProps) => {
           <header className="h-14 flex items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
             <div className="flex items-center gap-4">
               <SidebarTrigger className="h-9 w-9" />
-              <h1 className="font-semibold">Cryonix Trading Platform</h1>
+              <h1 className="font-semibold">Cryonix AI Trading Platform</h1>
             </div>
             <div className="flex items-center gap-4">
               <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">

@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Chat from "./pages/Chat";
 import KPI from "./pages/KPI";
-import MultiBot from "./pages/MultiBot";
 import Backtesting from "./pages/Backtesting";
 import Config from "./pages/Config";
 import Architecture from "./pages/Architecture";
@@ -30,7 +29,6 @@ const App = () => {
             <Route path="/auth" element={<Auth />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/kpi" element={<KPI />} />
-            <Route path="/multibot" element={<MultiBot />} />
             <Route path="/backtesting" element={<Backtesting />} />
             <Route path="/config" element={<Config />} />
             <Route path="/architecture" element={<Architecture />} />

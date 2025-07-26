@@ -29,29 +29,23 @@ import { Badge } from "@/components/ui/badge";
 
 const mainItems = [
   { 
-    title: "Trading Dashboard", 
+    title: "Cryonix Dashboard", 
     url: "/", 
     icon: BarChart3,
-    description: "Realtidsövervakning"
+    description: "AI Trading Bot"
   },
   { 
     title: "AI Assistant", 
     url: "/chat", 
     icon: Brain,
-    description: "AI-driven handel",
+    description: "Trading Chat",
     badge: "Gemini"
   },
   { 
-    title: "KPI Dashboard", 
+    title: "Performance Analytics", 
     url: "/kpi", 
     icon: TrendingUp,
     description: "Prestationsanalys"
-  },
-  { 
-    title: "Multi-Bot Manager", 
-    url: "/multibot", 
-    icon: Bot,
-    description: "Hantera trading-bots"
   },
 ];
 
