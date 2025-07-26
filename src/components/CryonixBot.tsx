@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import BotActivityFeed from '@/components/BotActivityFeed';
+import TradingBacklog from '@/components/TradingBacklog';
 import { 
   Play, 
   Pause, 
@@ -517,15 +517,15 @@ const CryonixBot = () => {
       </div>
 
       {/* Bot Details Tabs */}
-      <Tabs defaultValue="activity" className="space-y-4">
+      <Tabs defaultValue="backlog" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="activity">Live Activity</TabsTrigger>
+          <TabsTrigger value="backlog">Trading Backlog</TabsTrigger>
           <TabsTrigger value="configuration">Configuration</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="activity">
-          <BotActivityFeed botId={bot.id} />
+        <TabsContent value="backlog">
+          <TradingBacklog />
         </TabsContent>
 
         <TabsContent value="configuration">
