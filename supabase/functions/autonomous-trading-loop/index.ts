@@ -123,28 +123,8 @@ async function startAutonomousLoop(supabase: any, userId: string, intervalMinute
       }
     });
 
-  // Set up the cron job using pg_cron
-  const cronExpression = `*/${intervalMinutes} * * * *`; // Every N minutes
-  
-  try {
-    // First, remove any existing cron job
-    await supabase.rpc('cron_unschedule', { job_name: `trading_loop_${userId}` });
-  } catch (error) {
-    console.log('No existing cron job to remove');
-  }
-
-  // Schedule new cron job
-  await supabase.rpc('cron_schedule', {
-    job_name: `trading_loop_${userId}`,
-    cron: cronExpression,
-    command: `
-      SELECT net.http_post(
-        url := '${Deno.env.get('SUPABASE_URL')}/functions/v1/autonomous-trading-loop',
-        headers := '{"Content-Type": "application/json", "Authorization": "Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}"}'::jsonb,
-        body := '{"action": "run_cycle", "userId": "${userId}"}'::jsonb
-      );
-    `
-  });
+  // Immediately run one cycle to get things started
+  await runTradingCycle(supabase, userId);
 
   // Log loop start
   await logSystemActivity(supabase, userId, 'system', 'Autonomous Loop Started', `Trading loop started with ${intervalMinutes} minute interval`, 'success');
@@ -164,13 +144,6 @@ async function stopAutonomousLoop(supabase: any) {
   if (runningLoops) {
     for (const loop of runningLoops) {
       if (loop.config_value?.isRunning) {
-        // Remove cron job
-        try {
-          await supabase.rpc('cron_unschedule', { job_name: `trading_loop_${loop.user_id}` });
-        } catch (error) {
-          console.log(`No cron job found for user ${loop.user_id}`);
-        }
-
         // Update status
         await supabase
           .from('system_config')
