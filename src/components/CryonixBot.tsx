@@ -34,6 +34,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { asObjectOrEmpty, mapDbBotStatus } from '@/lib/mappers';
 
 interface CryonixBotState {
   id?: string;
@@ -57,6 +58,29 @@ interface CryonixBotState {
   created_at?: string;
   updated_at?: string;
 }
+
+const mapDbBotToState = (b: any): CryonixBotState => ({
+  id: b.id,
+  name: b.name,
+  status: mapDbBotStatus(b.status),
+  initial_balance: Number(b.initial_balance) || 0,
+  current_balance: Number(b.current_balance) || 0,
+  daily_pnl: Number(b.daily_pnl) || 0,
+  total_pnl: Number(b.total_pnl) || 0,
+  daily_trades: Number(b.daily_trades) || 0,
+  total_trades: Number(b.total_trades) || 0,
+  win_rate: Number(b.win_rate) || 0,
+  max_drawdown: Number(b.max_drawdown) || 0,
+  uptime_hours: Number(b.uptime_hours) || 0,
+  risk_settings: {
+    riskLevel: asObjectOrEmpty(b.risk_settings).riskLevel ?? 3,
+    maxTradeAmount: asObjectOrEmpty(b.risk_settings).maxTradeAmount ?? 0.05,
+    stopLoss: asObjectOrEmpty(b.risk_settings).stopLoss ?? 0.02,
+    takeProfit: asObjectOrEmpty(b.risk_settings).takeProfit ?? 0.04,
+  },
+  created_at: b.created_at,
+  updated_at: b.updated_at,
+});
 
 const CryonixBot = () => {
   const { user } = useAuth();
@@ -101,7 +125,7 @@ const CryonixBot = () => {
         });
       }
 
-      setBot(existingBot);
+      setBot(existingBot ? mapDbBotToState(existingBot as any) : null);
     } catch (error) {
       console.error('Error in loadBot:', error);
       toast({
@@ -169,7 +193,7 @@ const CryonixBot = () => {
 
       if (error) throw error;
 
-      setBot(data);
+      setBot(mapDbBotToState(data as any));
       setDialogOpen(false);
       
       toast({

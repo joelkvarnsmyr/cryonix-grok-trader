@@ -5,6 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Activity, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, XCircle, BarChart3 } from 'lucide-react';
+import { asObjectOrEmpty, mapDbActivityStatus } from '@/lib/mappers';
 
 interface BotActivity {
   id: string;
@@ -66,7 +67,19 @@ const BotActivityFeed = ({ botId, maxItems = 50 }: BotActivityFeedProps) => {
         return;
       }
 
-      setActivities(data || []);
+      const normalized: BotActivity[] = (data || []).map((a: any) => ({
+        id: a.id,
+        bot_id: a.bot_id,
+        activity_type: a.activity_type,
+        title: a.title,
+        description: a.description,
+        status: mapDbActivityStatus(a.status),
+        data: asObjectOrEmpty(a.data, {}),
+        created_at: a.created_at,
+        trading_bots: a.trading_bots ? { name: a.trading_bots.name, symbol: a.trading_bots.symbol } : undefined
+      }));
+
+      setActivities(normalized);
     } catch (error) {
       console.error('Error fetching activities:', error);
     } finally {
@@ -88,7 +101,17 @@ const BotActivityFeed = ({ botId, maxItems = 50 }: BotActivityFeedProps) => {
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          const newActivity = payload.new as BotActivity;
+          const a: any = payload.new;
+          const newActivity: BotActivity = {
+            id: a.id,
+            bot_id: a.bot_id,
+            activity_type: a.activity_type,
+            title: a.title,
+            description: a.description,
+            status: mapDbActivityStatus(a.status),
+            data: asObjectOrEmpty(a.data, {}),
+            created_at: a.created_at,
+          };
           if (!botId || newActivity.bot_id === botId) {
             setActivities(prev => [newActivity, ...prev.slice(0, maxItems - 1)]);
           }
