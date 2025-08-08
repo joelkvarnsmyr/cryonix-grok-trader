@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { performSecureSignIn, performSecureSignUp } from '@/lib/authUtils';
+import { performSecureSignIn, performSecureSignUp, cleanupAuthState } from '@/lib/authUtils';
+import { supabase } from '@/integrations/supabase/client';
 
 const Auth = () => {
   console.log('Auth page: Component initializing...');
@@ -12,6 +13,10 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const [isResetRequest, setIsResetRequest] = useState(false);
+  const [isPasswordReset, setIsPasswordReset] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   console.log('Auth page: State initialized', { user: !!user, authLoading, isSignUp });
 
@@ -22,6 +27,21 @@ const Auth = () => {
       window.location.href = '/';
     }
   }, [user, authLoading]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('reset') === 'true') {
+      setIsPasswordReset(true);
+    }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordReset(true);
+      }
+    });
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +93,86 @@ const Auth = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      toast({
+        title: "Valideringsfel",
+        description: "Ange din e-postadress",
+        variant: "destructive",
+      });
+      return;
+    }
+    setLoading(true);
+    try {
+      cleanupAuthState();
+      try {
+        await supabase.auth.signOut({ scope: 'global' });
+      } catch {}
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth?reset=true`,
+      });
+      if (error) throw error;
+      toast({
+        title: "E-post skickat",
+        description: "Vi har skickat en länk för att återställa ditt lösenord.",
+      });
+      setIsResetRequest(false);
+    } catch (error: any) {
+      console.error('Auth: Reset error:', error);
+      toast({
+        title: "Fel vid återställning",
+        description: error.message || "Ett oväntat fel inträffade",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      toast({
+        title: "Valideringsfel",
+        description: "Lösenordet måste vara minst 6 tecken",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Valideringsfel",
+        description: "Lösenorden matchar inte",
+        variant: "destructive",
+      });
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      toast({
+        title: "Lösenord uppdaterat",
+        description: "Ditt lösenord har uppdaterats.",
+      });
+      // Clean URL and redirect
+      window.history.replaceState({}, document.title, window.location.pathname);
+      window.location.href = '/';
+    } catch (error: any) {
+      console.error('Auth: Update password error:', error);
+      toast({
+        title: "Fel",
+        description: error.message || "Ett oväntat fel inträffade",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+      setNewPassword('');
+      setConfirmPassword('');
     }
   };
 
