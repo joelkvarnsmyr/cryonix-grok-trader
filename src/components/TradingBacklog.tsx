@@ -22,6 +22,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { asObjectOrEmpty, mapDbActivityStatus } from '@/lib/mappers';
 
 interface BotActivity {
   id: string;
@@ -91,11 +92,22 @@ const TradingBacklog = () => {
 
       if (error) throw error;
 
-      let filteredData = data || [];
+      const normalized = (data || []).map((a: any) => ({
+        id: a.id,
+        activity_type: a.activity_type,
+        title: a.title,
+        description: a.description,
+        status: mapDbActivityStatus(a.status),
+        data: asObjectOrEmpty(a.data, {}),
+        created_at: a.created_at,
+        bot_id: a.bot_id,
+      })) as BotActivity[];
+
+      let filtered = normalized;
 
       // Apply symbol filter (check in data.symbol or extract from description)
       if (filters.symbol !== 'all') {
-        filteredData = filteredData.filter(activity => 
+        filtered = filtered.filter(activity => 
           activity.data?.symbol === filters.symbol || 
           activity.description?.includes(filters.symbol) ||
           activity.title?.includes(filters.symbol)
@@ -105,15 +117,15 @@ const TradingBacklog = () => {
       // Apply search filter
       if (filters.searchTerm) {
         const searchLower = filters.searchTerm.toLowerCase();
-        filteredData = filteredData.filter(activity =>
+        filtered = filtered.filter(activity =>
           activity.title?.toLowerCase().includes(searchLower) ||
           activity.description?.toLowerCase().includes(searchLower) ||
-          activity.data?.question?.toLowerCase().includes(searchLower) ||
-          activity.data?.reasoning?.toLowerCase().includes(searchLower)
+          String(activity.data?.question || '').toLowerCase().includes(searchLower) ||
+          String(activity.data?.reasoning || '').toLowerCase().includes(searchLower)
         );
       }
 
-      setActivities(filteredData);
+      setActivities(filtered);
     } catch (error) {
       console.error('Error loading activities:', error);
     } finally {

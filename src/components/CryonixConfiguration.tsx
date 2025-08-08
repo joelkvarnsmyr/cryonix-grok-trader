@@ -138,8 +138,8 @@ const CryonixConfiguration = () => {
         .eq('config_key', 'cryonix_configuration')
         .single();
 
-      if (data?.config_value) {
-        setConfig({ ...config, ...data.config_value });
+      if (data?.config_value && typeof data.config_value === 'object' && !Array.isArray(data.config_value)) {
+        setConfig(prev => ({ ...prev, ...(data.config_value as Partial<CryonixConfig>) }));
       }
     } catch (error) {
       console.log('No existing configuration found, using defaults');
@@ -167,7 +167,7 @@ const CryonixConfiguration = () => {
         .upsert({
           user_id: user.id,
           config_key: 'cryonix_configuration',
-          config_value: config
+          config_value: config as any
         });
 
       setHasChanges(false);
